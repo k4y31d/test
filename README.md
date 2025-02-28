@@ -52,6 +52,7 @@ Tracing the structs xrefs, found before using these configs it's being decrypted
 
 - Before the decryption function **Amadey** relocates the configs in the heap despite it's in the heap or the `.data`.
 - Inside the decryption function it calls two functions
+
 ![String Decryption Function](./PICs/string_decryption.png)
   - First one for decryption the custom base64.
   - Second function is the base64 decoding/encoding function
@@ -71,26 +72,37 @@ Like we said the configs are stored in custom base64 format this function is res
 ###### Algorithm
 
 This function is consist of one main loop to iterate throw the encrypted config's characters and other two loops to set up the decryption
+
 ![Main loop](./PICs/first_loop.png)
+
 Here like we can see it checks if the chunk size is large it moves the data instead of the pointer to start work...
 
 - First Inner Loop
+
 ![Base64 Loop](./PICs/base64_loop.png)
+
   - Before entering the loop it makes sure the custom base used to encrypt is loaded if yes it enters infinte loop.
 We mentioned the malware moves the configs to the `.data` section in run time before the main and this base isn't exception
+
 ![Loads Base](./PICs/loads_base.png)
+
   - Inside the loop it iterates throw this custom base(characters set differ from the base64 ordinary characters set).
   - The loop searches for the character in the encrypted config inside this custom set and return its index `char_index`.
 - Second Inner Loop
+
 ![Key Loop](./PICs/key_loop.png)
+
   - The second loop is tybical the previous one but this is searching for the index of a corresponding letter from characters set I called them `Key` which also dynamically moved to the `.data` section before the main.
+  
   ![Loads Key](./PICs/load_key.png)
+  
   - For each character in the encrypted config it has a corresponding character in the key depends on the config's character index`(eg. if there is a character c in the encrypted config its index there is 6 it's corresponding character in the key is 5)`
   - If the config length is greater than the key length it will repeat the process from the beginning of the key.
   - This loop also searches for that specific character and returns its index `key_index`.
 
 - Decrypt
 After getting the indexes from the previous two loops the math begin...
+
 ![Decrypt Index](./PICs/decryption.png)
   
   - In this block of code we see it takes the two indexes makes an operation to get the actual index of the actual base64's chcharacters
