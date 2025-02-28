@@ -424,7 +424,7 @@ attempts to read the process memory (likely checking the ImageBase).
 | 1 | C2 | `185.196.8.37/Gd85kkjf/index.php` |
 |2| Temp Folder| `cca1940fda`|
 |3| Running Process| `Gxtuum.exe`|
-| 4| Dropped File | `Plugins.dll`, `book.exe`, `Book.xsls`|
+| 4| Dropped File | `Plugins.dll`, `book.exe`, `Book.xslx`|
 |5|Created Job|`Gxtuum.job`|
 
 # yara
