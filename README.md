@@ -239,7 +239,7 @@ Keyboard Layout\Preload<br>
 Amadey stores the C2 server on its configurations and decrypts it when needed like other configurations.
 After Amadey sets up all things, achieve presistence, host profiling, move itself to the temp and boot up from there, it creates a thread to continue the work from an infinte loop...
 
-![C2_Prep](/PICS/c2_prep.png)
+![C2_Prep](./PICs/c2_prep.png)
 
 Amadey decryptes the C2 server and the object it will request at the begining of the function.
 Things can be very confusing, but Amadey uses stack pointer manipulation which is making things quite difficult especially when it comes to arguments and it's hard to resolve for ida, but I did my best to clear things up.
