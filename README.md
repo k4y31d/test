@@ -123,11 +123,11 @@ After achieving persistence, the malware ensures that it's running from the **Te
 
 - Concatinating to it the desiered folder to contain our malware which is `cca1940fda`.
 - Adding to the path the desiered name for the malware to be run as `Gxtuum.exe`.
-- 
+  
 ![Temp prep](/PICs/temp_prep.png)
 
 - It then gets the file name and path using `GetModuleFileNameA` API.
-- 
+  
 ![Comparing Path](/PICs/path_cmp.png)
 
 - Compares between these to paths and if compatable move on, if not:
@@ -213,7 +213,7 @@ Tracing the structs xrefs, found before using these configs it's being decrypted
 
 - Before the decryption function **Amadey** relocates the configs in the heap despite it's in the heap or the `.data`.
 - Inside the decryption function it calls two functions
-- 
+  
 ![String Decryption Function](./PICs/string_decryption.png)
 
   - First one for decryption the custom base64.
@@ -240,7 +240,7 @@ This function is consist of one main loop to iterate throw the encrypted config'
 Here like we can see it checks if the chunk size is large it moves the data instead of the pointer to start work...
 
 - First Inner Loop
-- 
+  
 ![Base64 Loop](./PICs/base64_loop.png)
 
   - Before entering the loop it makes sure the custom base used to encrypt is loaded if yes it enters infinte loop.
