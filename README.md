@@ -4,28 +4,179 @@
 
 # Tech Summary
 
+- 
 -
 -
 -
 -
 -
--
 
-# first stage
+# Analysis
 
-نحط الريبورت مع الستاتيك
 
-# second stage
 
-## Analysis
+## Host profiling
 
-### host profiling
+During the analysis of the malware sample, it was observed that it collects various system attributes to profile the infected host. This information helps the malware determine the system's characteristics and decide on further actions, such as evading detection, executing payloads, or tailoring attacks.
 
-### presistance
+Extracted Host Profiling Parameters
+The malware collects the following system-related information:
+|Identifier|Value|
+|--|---|
+|id | Unique identifier of the infected system, possibly generated based on hardware and user-specific values.|
+|os | Operating system version, used to determine compatibility with malware execution.|
+|vs | Version of the malware or related software on the system.|
+|pc | Computer name, which can be used for identification or network-based attacks.|
+|sd | System directory path, potentially used for storing malicious files or persistence.|
+|av | Installed antivirus software, useful for evasion techniques.|
+|bi | Build information of the system, which may indicate specific Windows distributions or architectures.|
+|ar | Administrator rights status, determining whether the malware runs with elevated privileges.|
+|lv | Locale and language settings, which could help malware avoid execution in specific regions.|
+|og | Organization or domain name, often extracted for targeting enterprise environments.|
+|un | Current username, useful for determining access levels and privileges.|
+|dm | Domain membership status, relevant for targeting corporate networks.|
 
-### mutex
+### Implications of Host Profiling
 
-## configs
+By gathering this data, the malware author gains a deeper understanding of the infected environment. This intelligence allows it to:
+
+- Adapt behavior based on the operating system and security measures.
+- Avoid execution on certain machines to evade analysis.
+- Target specific organizations or regions.
+
+## Persistence
+
+### Technical Breakdown of Persistence
+
+#### Scheduled Task via COM Interface
+
+The malware establishes persistence by creating a **Scheduled Task using the Task Scheduler COM API** instead of traditional methods like schtasks.exe or registry modifications. By leveraging hardcoded **CLSIDs** and **RIIDs**, specifically **CLSID** `{148BD52A-A2AB-11CE-B11F-00AA00530503}` (representing `ITaskScheduler`) and **RIID** `{148BD527-A2AB-11CE-B11F-00AA00530503}` (representing `ITask`), the malware interacts directly with the Task Scheduler service. This technique enables stealthy execution and evasion from detection mechanisms that monitor command-line activity.
+
+Once initialized, the malware creates a scheduled task that executes a malicious malware copied to the Temp directory, typically found at:
+`C:\Users\<Username>\AppData\Local\Temp\Gxtuum.exe`
+
+The task is configured to run at system startup or user logon, ensuring persistence across reboots. Additionally, it may set specific flags, such as `TASK_FLAG_HIDDEN`, to make the task less noticeable in the Task Scheduler UI. By using CoCreateInstance to instantiate `ITaskScheduler` and `ITask`, the malware programmatically creates and registers the task without invoking external processes, making it harder to detect through standard security monitoring.
+
+This persistence mechanism poses a significant challenge for detection and mitigation, as it bypasses command-line monitoring and process-based detection. However, defenders can identify this behavior by auditing `Scheduled Task entries`, monitoring for unusual `COM object instantiations`, and inspecting the `Temp directory` for unauthorized executables. Removing the malicious task requires using `schtasks /delete` or PowerShell’s `Unregister-ScheduledTask` command.
+
+Persistence Mechanism: Scheduled Task and Job Creation
+During the analysis of the malware sample, it was observed that it establishes persistence using Windows Scheduled Tasks. This technique ensures that the malware remains active even after a system reboot or user logoff, allowing it to maintain control over the infected machine.
+
+#### Job Creation:
+
+The malware also creates a job associated with the scheduled task, likely serving as a wrapper for executing additional commands or payloads in a controlled manner. This job-based execution may be intended to:
+
+- Maintain stealth by running within a legitimate process.
+- Ensure reliable execution of the malware.
+- Bypass certain security mechanisms that might block standalone execution.
+
+#### Task Execution & Persistence:
+
+Once the scheduled task is created, it will:
+
+- Run at system startup, on user logon, or at specified intervals.
+- Invoke the malicious payload, ensuring continued infection.
+- Potentially execute with elevated privileges if the task was configured to run as an administrator.
+
+
+#### The Made Task Info.
+
+```
+Folder: \
+HostName:                             DESKTOP-3AKENE3
+TaskName:                             \Gxtuum
+Next Run Time:                        2/11/2025 4:00:00 AM
+Status:                               Ready
+Logon Mode:                           Interactive only
+Last Run Time:                        2/11/2025 3:59:00 AM
+Last Result:                          0
+Author:                               DESKTOP-3AKENE3\Golden
+Task To Run:                          C:\Users\Golden\AppData\Local\Temp\cca1940fda\Gxtuum.exe 
+Start In:                             N/A
+Comment:                              N/A
+Scheduled Task State:                 Enabled
+Idle Time:                            Disabled
+Power Management:                     
+Run As User:                          Golden
+Delete Task If Not Rescheduled:       Disabled
+Stop Task If Runs X Hours and X Mins: 72:00:00
+Schedule:                             Scheduling data is not available in this format.
+Schedule Type:                        One Time Only, Minute 
+Start Time:                           1:01:00 AM
+Start Date:                           2/11/2025
+End Date:                             N/A
+Days:                                 N/A
+Months:                               N/A
+Repeat: Every:                        0 Hour(s), 1 Minute(s)
+Repeat: Until: Time:                  None
+Repeat: Until: Duration:              87600 Hour(s), 0 Minute(s)
+Repeat: Stop If Still Running:        Disabled
+```
+
+![Task](/PICs/tasks.png)
+
+### Copy into *Temp*
+
+After achieving persistence, the malware ensures that it's running from the **Temp Folder** and if not copy itself there and lunch up from there and exits the current process.
+
+- It first get the **Temp Folder** path.
+
+- Concatinating to it the desiered folder to contain our malware which is `cca1940fda`.
+- Adding to the path the desiered name for the malware to be run as `Gxtuum.exe`.
+![Temp prep](/PICs/temp_prep.png)
+- It then gets the file name and path using `GetModuleFileNameA` API.
+![Comparing Path](/PICs/path_cmp.png)
+- Compares between these to paths and if compatable move on, if not:
+  - Check if there is any directory with the name `cca1940fda` and if yes, tries to open the malware at the reading mode:
+    - If can open it which mean it's already exists there:
+      - Excute the malware from there.
+    - If can't open it, Copies itself to the desiered path with the new name, and finally excutes from the **Temp**.
+  - If there isn't, creates the directory and copies itself to the **Temp** and finally excutes.
+  ![Directory](/PICs/fExists.png)
+  ![Not Existing](/PICs/fNotExists.png)
+
+---------------------------------  
+
+* `make_copy_0`
+  ![Coping](/PICs/copy.png)
+
+---------------------------------
+
+* `shell_excute`
+  ![Excutes](/PICs/excute.png)
+
+---------------------------------
+
+**Machine Temp Folder**
+![Temp](/PICs/temp.png)
+
+## Mutex
+
+The malware employs a **mutex (Mutual Exclusion Object)** as part of its execution flow. A mutex is a synchronization primitive that allows the malware to enforce single-instance execution, preventing multiple copies from running simultaneously. This technique is commonly used by malware to avoid conflicts and potential detection by security tools that monitor multiple active processes.
+
+### Functions of the Mutex in the Malware
+
+- Ensuring Single Instance Execution
+  - Upon execution, the malware checks for the existence of a predefined mutex.
+  - If the mutex already exists, it assumes that another instance is already running and immediately exits.
+  - If the mutex does not exist, it creates one and continues execution.
+  - This prevents system instability caused by multiple instances performing the same malicious actions simultaneously.
+
+- Anti-Sandbox & Anti-Debugging Technique
+
+  - Sandboxes and analysis environments often restart malware multiple times to observe different behaviors.
+  - By using a mutex, the malware prevents itself from executing in such environments if a previous instance is already running.
+  - Some sandbox solutions do not properly reset mutex objects, making this a simple yet effective anti-analysis trick.
+- Evasion from Certain Security Solutions
+
+  - Some security tools rely on launching multiple instances of a suspicious binary to monitor behavioral changes over time.
+  - The mutex prevents such redundant execution, making behavior-based detection harder.
+
+Mutex name `44c9c3d1e2ec0331790f629dd3724d02`
+![Mutex](/PICs/mutex.png)
+Amadey reuses the mutex name as a `rc4 Key` for encrypt and decrypt data in communication with the C2 server.
+
+# Configurations
 
 The configurations are encrypted and stored in the `.rdata` section in the second stage and dynamically located in `.data` section and the heap to be decrypted later.
 
@@ -52,7 +203,6 @@ Tracing the structs xrefs, found before using these configs it's being decrypted
 
 - Before the decryption function **Amadey** relocates the configs in the heap despite it's in the heap or the `.data`.
 - Inside the decryption function it calls two functions
-
 ![String Decryption Function](./PICs/string_decryption.png)
   - First one for decryption the custom base64.
   - Second function is the base64 decoding/encoding function
@@ -72,37 +222,26 @@ Like we said the configs are stored in custom base64 format this function is res
 ###### Algorithm
 
 This function is consist of one main loop to iterate throw the encrypted config's characters and other two loops to set up the decryption
-
 ![Main loop](./PICs/first_loop.png)
-
 Here like we can see it checks if the chunk size is large it moves the data instead of the pointer to start work...
 
 - First Inner Loop
-
 ![Base64 Loop](./PICs/base64_loop.png)
-
   - Before entering the loop it makes sure the custom base used to encrypt is loaded if yes it enters infinte loop.
 We mentioned the malware moves the configs to the `.data` section in run time before the main and this base isn't exception
-
 ![Loads Base](./PICs/loads_base.png)
-
   - Inside the loop it iterates throw this custom base(characters set differ from the base64 ordinary characters set).
   - The loop searches for the character in the encrypted config inside this custom set and return its index `char_index`.
 - Second Inner Loop
-
 ![Key Loop](./PICs/key_loop.png)
-
   - The second loop is tybical the previous one but this is searching for the index of a corresponding letter from characters set I called them `Key` which also dynamically moved to the `.data` section before the main.
-  
   ![Loads Key](./PICs/load_key.png)
-  
   - For each character in the encrypted config it has a corresponding character in the key depends on the config's character index`(eg. if there is a character c in the encrypted config its index there is 6 it's corresponding character in the key is 5)`
   - If the config length is greater than the key length it will repeat the process from the beginning of the key.
   - This loop also searches for that specific character and returns its index `key_index`.
 
 - Decrypt
 After getting the indexes from the previous two loops the math begin...
-
 ![Decrypt Index](./PICs/decryption.png)
   
   - In this block of code we see it takes the two indexes makes an operation to get the actual index of the actual base64's chcharacters
@@ -246,17 +385,15 @@ Keyboard Layout\Preload<br>
 0000043f<br>
 </details>
 
-## C2
+# C2
 
 Amadey stores the C2 server on its configurations and decrypts it when needed like other configurations.
-After Amadey sets up all things, achieve presistence, host profiling, move itself to the temp and boot up from there, it creates a thread to continue the work from an infinte loop...
-
-![C2_Prep](./PICs/c2_prep.png)
-
+After Amadey sets up all things, achieve Persistence, host profiling, move itself to the temp and boot up from there, it creates a thread to continue the work from an infinte loop...
+![C2_Prep](/PICs/c2_prep.png)
 Amadey decryptes the C2 server and the object it will request at the begining of the function.
 Things can be very confusing, but Amadey uses stack pointer manipulation which is making things quite difficult especially when it comes to arguments and it's hard to resolve for ida, but I did my best to clear things up.
 
-### C2 Comms
+## C2 Comms
 
 Inside the `c2_func`, it starts to initialize the data for the requests...
 Amadey initializes the connection with the remote end using the high level `Wininet.dll` library APIs.
@@ -284,7 +421,6 @@ After every call for `c2_comms`, Amadey checks for the strings `<c>`,`<d>`, and 
 Amadey uses the first request to get the time the sample should sleep `dwMillisecond` after every time the function `c2_func` exits.
 
 After that, Amadey initialize the second request which contain the gathered data about the system `Host Profiling` encrypted with `rc4`.
-
 ![Data](./PICs/gathered_data.png)
 
 After sending these data, the bot recieves the command from the server and save it to select what option to do.
@@ -292,7 +428,6 @@ If there is no resopnse from the server like above it will clean everything and 
 
 After geting the data from the server, Amadey starts the work.
 This function passes the work to `sub_41E5E0` and passes four arguments to it...
-
 ![sub_41E5E0](./PICs/sub_41E5E0.png)
 
 - `server_response` where the resopnse from the server is stored.
@@ -301,21 +436,14 @@ This function passes the work to `sub_41E5E0` and passes four arguments to it...
 - `_lpszObjectName` where the sample stores the object to ask the server for which is `/Gd85kkjf/index.php` and all work starts from it.
 
 Amadey starts to search for `#` in the data received from the server...
-
 ![sub_41CAE0](./PICs/sub_41CAE0.png)
-
 If can't find the `#` inside the data recieved from the server, reallocate the arguments and continue the work from another function `sub_41CAE0`
-
 ![sub_41CAE0](./PICs/re.png)
 
 But if found `#` the other path starts with infinte loop and starts to search for the hashtags `#` through the response uses a variable as an index to indicates where is these hashtags and if this counter or index exceeds the total size of the server response the loop break.
-
 ![Path2](/PICs/Path2.png)
-
 The break from the loop resides at the end of the loop...
-
 ![Break](/PICs/break.png)
-
 Because I can't get the response from the server without emulation, I assume that the response `commands` is kind of instructions sequence separated by `#` and we would know why later...
 
 This infinite loop (as appear like I mentioned) takes each instruction separately which starts with `#` and excute it then returns to the loop to the next instruction until the end of the commands, after reach this point the malware cleans every thing and redo every thing again.
@@ -323,40 +451,28 @@ This infinite loop (as appear like I mentioned) takes each instruction separatel
 Inside the function like we said, it starts to search for hashtags inside the server response...
 
 The way is simple, Amadey starts to allocate each charcater and compare it with `#` and if `yes` the variable `hash_found` is set.
-
 ![Found Hash](./PICs/set_hash.png)
-
 ```str_cmp is a sepcial function for string comapring returns`1` if succeeded and `0` if not.```
 
 After locating the hashtag inside the response the malware starts to excute the command after it from the function `sub_14CAE0`...
-
 ![Starts Work](./PICs/start.png)
 
 This function starts to look for the number to indicate what option or path to take.
-
 ![Command Init](./PICs/command_init.png)
-
 Here, get at most to bytes from a position `+8` from the data recieved from the server.
 
 At the end of the function there is a `switch-case` block consists of 19 cases.
-
 ![Command](./PICs/command.png)
-
 This block of code convert the two or one bytes in `command` variable to integer which decides what option or path to take.
 
 After getting the option from the data received and before deciding which path to take, it tries to search for `+` in the data at a certain position every time `after 0xB`.
-
 ![Init Plus](./PICs/get_data.png)
-
 Then it starts to check if `+` is found at this position..
-
 ![chekc plus](./PICs/check_plus.png)
-
 If `yes`, it gets some data from the memory at `hex` format and decrypts it with `rc4`..
-
 ![Read Memory](./PICs/read_mem.png)
 
-#### Options
+### Options
 
 Most cases are concerned with droping files into the system at different places
 
@@ -369,37 +485,30 @@ Most cases are concerned with droping files into the system at different places
 - Case`16` use the low-leve connection
 - Case`17` drop&excute another payload
 - Case`18` sending data and drop another payload
+- Case `19` make a scheduled task and edit the `RunOnce` registry key and adds a new value there to ensure lunching up at the start up.
 - Case`22` another path in it dropped a `dll` `Plugins.dll`
 - Case`24` sending data
 - Case`25` another way to creat and drop file
 
-These options clears up that it has many paths to do one thing as a back-up or to do it with different arguments
+These options clears up that it has many paths to do one thing as a back-up or to do it with different arguments.
 
-## payload injection
+# payload injection
 
-### Get Payload
+## Get Payload
 
 The injection process takes place if the option is `13`.
 Like always in this sample and the stack pointer manipulation, it reallocates the arguments again before calling the function responsible for the injection.
-
 ![Injection](./PICs/case13.png)
-
 Inside the function `drop_inject`, it initialize a counter with `0` and enters an infinite loop.
-
 ![Pre 1](/PICs/pre_injection1.png)
-
 It connects to the server and reads file and pass it to the function responsible for injection if the reading process succeeded. If not close handles.
-
 ![Pre 2](/PICs/pre_injection2.png)
-
 If the malware could read the payload from the server and the `injection` function returns `1`(which is always returns `1`), the loop breaks successfuly.
 If the malware can't receive any response from the server which means also the injection process didn't go as planed, the malware sleeps for `10` seconds and go to lable `LABLE_66`
-
 ![Failed](/PICs/send_random.png)
-
 The function `send_data` sends some random data, but known for the mawlare author, which I assume is used to check if the server is up or has been got down.
 
-### Inject Payload
+## Inject Payload
 
 ![inj](/PICs/inj_1.png)
 ![inj](/PICs/inj_2.png)
@@ -417,15 +526,16 @@ attempts to read the process memory (likely checking the ImageBase).
 - Finally, sets the modified context and resumes execution.
 - Then the function returns `1`.
 
-
 # IOCs
+
 | No                          | Description                                                                      |  Value      |
 |--------------------------------|-----------------------------------------------------------------------------|--------------|
 | 1 | C2 | `185.196.8.37/Gd85kkjf/index.php` |
 |2| Temp Folder| `cca1940fda`|
 |3| Running Process| `Gxtuum.exe`|
-| 4| Dropped File | `Plugins.dll`, `book.exe`, `Book.xslx`|
+| 4| Dropped File | `Plugins.dll`, `book.exe`, `Book.xsls`|
 |5|Created Job|`Gxtuum.job`|
+|6|Mutant|`44c9c3d1e2ec0331790f629dd3724d02`|
 
 # yara
 
