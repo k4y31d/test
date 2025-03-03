@@ -123,31 +123,39 @@ After achieving persistence, the malware ensures that it's running from the **Te
 
 - Concatinating to it the desiered folder to contain our malware which is `cca1940fda`.
 - Adding to the path the desiered name for the malware to be run as `Gxtuum.exe`.
+- 
 ![Temp prep](/PICs/temp_prep.png)
+
 - It then gets the file name and path using `GetModuleFileNameA` API.
+- 
 ![Comparing Path](/PICs/path_cmp.png)
+
 - Compares between these to paths and if compatable move on, if not:
   - Check if there is any directory with the name `cca1940fda` and if yes, tries to open the malware at the reading mode:
     - If can open it which mean it's already exists there:
       - Excute the malware from there.
     - If can't open it, Copies itself to the desiered path with the new name, and finally excutes from the **Temp**.
   - If there isn't, creates the directory and copies itself to the **Temp** and finally excutes.
-  ![Directory](/PICs/fExists.png)
+
+   ![Directory](/PICs/fExists.png)
   ![Not Existing](/PICs/fNotExists.png)
 
 ---------------------------------  
 
 * `make_copy_0`
+  
   ![Coping](/PICs/copy.png)
 
 ---------------------------------
 
 * `shell_excute`
+  
   ![Excutes](/PICs/excute.png)
 
 ---------------------------------
 
 **Machine Temp Folder**
+
 ![Temp](/PICs/temp.png)
 
 ## Mutex
@@ -173,7 +181,9 @@ The malware employs a **mutex (Mutual Exclusion Object)** as part of its executi
   - The mutex prevents such redundant execution, making behavior-based detection harder.
 
 Mutex name `44c9c3d1e2ec0331790f629dd3724d02`
+
 ![Mutex](/PICs/mutex.png)
+
 Amadey reuses the mutex name as a `rc4 Key` for encrypt and decrypt data in communication with the C2 server.
 
 # Configurations
@@ -203,7 +213,9 @@ Tracing the structs xrefs, found before using these configs it's being decrypted
 
 - Before the decryption function **Amadey** relocates the configs in the heap despite it's in the heap or the `.data`.
 - Inside the decryption function it calls two functions
+- 
 ![String Decryption Function](./PICs/string_decryption.png)
+
   - First one for decryption the custom base64.
   - Second function is the base64 decoding/encoding function
 
@@ -222,26 +234,37 @@ Like we said the configs are stored in custom base64 format this function is res
 ###### Algorithm
 
 This function is consist of one main loop to iterate throw the encrypted config's characters and other two loops to set up the decryption
+
 ![Main loop](./PICs/first_loop.png)
+
 Here like we can see it checks if the chunk size is large it moves the data instead of the pointer to start work...
 
 - First Inner Loop
+- 
 ![Base64 Loop](./PICs/base64_loop.png)
+
   - Before entering the loop it makes sure the custom base used to encrypt is loaded if yes it enters infinte loop.
 We mentioned the malware moves the configs to the `.data` section in run time before the main and this base isn't exception
+
 ![Loads Base](./PICs/loads_base.png)
+
   - Inside the loop it iterates throw this custom base(characters set differ from the base64 ordinary characters set).
   - The loop searches for the character in the encrypted config inside this custom set and return its index `char_index`.
 - Second Inner Loop
+
 ![Key Loop](./PICs/key_loop.png)
+
   - The second loop is tybical the previous one but this is searching for the index of a corresponding letter from characters set I called them `Key` which also dynamically moved to the `.data` section before the main.
+  
   ![Loads Key](./PICs/load_key.png)
+  
   - For each character in the encrypted config it has a corresponding character in the key depends on the config's character index`(eg. if there is a character c in the encrypted config its index there is 6 it's corresponding character in the key is 5)`
   - If the config length is greater than the key length it will repeat the process from the beginning of the key.
   - This loop also searches for that specific character and returns its index `key_index`.
 
 - Decrypt
 After getting the indexes from the previous two loops the math begin...
+
 ![Decrypt Index](./PICs/decryption.png)
   
   - In this block of code we see it takes the two indexes makes an operation to get the actual index of the actual base64's chcharacters
@@ -389,7 +412,9 @@ Keyboard Layout\Preload<br>
 
 Amadey stores the C2 server on its configurations and decrypts it when needed like other configurations.
 After Amadey sets up all things, achieve Persistence, host profiling, move itself to the temp and boot up from there, it creates a thread to continue the work from an infinte loop...
+
 ![C2_Prep](/PICs/c2_prep.png)
+
 Amadey decryptes the C2 server and the object it will request at the begining of the function.
 Things can be very confusing, but Amadey uses stack pointer manipulation which is making things quite difficult especially when it comes to arguments and it's hard to resolve for ida, but I did my best to clear things up.
 
@@ -421,6 +446,7 @@ After every call for `c2_comms`, Amadey checks for the strings `<c>`,`<d>`, and 
 Amadey uses the first request to get the time the sample should sleep `dwMillisecond` after every time the function `c2_func` exits.
 
 After that, Amadey initialize the second request which contain the gathered data about the system `Host Profiling` encrypted with `rc4`.
+
 ![Data](./PICs/gathered_data.png)
 
 After sending these data, the bot recieves the command from the server and save it to select what option to do.
@@ -428,6 +454,7 @@ If there is no resopnse from the server like above it will clean everything and 
 
 After geting the data from the server, Amadey starts the work.
 This function passes the work to `sub_41E5E0` and passes four arguments to it...
+
 ![sub_41E5E0](./PICs/sub_41E5E0.png)
 
 - `server_response` where the resopnse from the server is stored.
@@ -436,14 +463,21 @@ This function passes the work to `sub_41E5E0` and passes four arguments to it...
 - `_lpszObjectName` where the sample stores the object to ask the server for which is `/Gd85kkjf/index.php` and all work starts from it.
 
 Amadey starts to search for `#` in the data received from the server...
+
 ![sub_41CAE0](./PICs/sub_41CAE0.png)
+
 If can't find the `#` inside the data recieved from the server, reallocate the arguments and continue the work from another function `sub_41CAE0`
+
 ![sub_41CAE0](./PICs/re.png)
 
 But if found `#` the other path starts with infinte loop and starts to search for the hashtags `#` through the response uses a variable as an index to indicates where is these hashtags and if this counter or index exceeds the total size of the server response the loop break.
+
 ![Path2](/PICs/Path2.png)
+
 The break from the loop resides at the end of the loop...
+
 ![Break](/PICs/break.png)
+
 Because I can't get the response from the server without emulation, I assume that the response `commands` is kind of instructions sequence separated by `#` and we would know why later...
 
 This infinite loop (as appear like I mentioned) takes each instruction separately which starts with `#` and excute it then returns to the loop to the next instruction until the end of the commands, after reach this point the malware cleans every thing and redo every thing again.
@@ -451,25 +485,37 @@ This infinite loop (as appear like I mentioned) takes each instruction separatel
 Inside the function like we said, it starts to search for hashtags inside the server response...
 
 The way is simple, Amadey starts to allocate each charcater and compare it with `#` and if `yes` the variable `hash_found` is set.
+
 ![Found Hash](./PICs/set_hash.png)
+
 ```str_cmp is a sepcial function for string comapring returns`1` if succeeded and `0` if not.```
 
 After locating the hashtag inside the response the malware starts to excute the command after it from the function `sub_14CAE0`...
+
 ![Starts Work](./PICs/start.png)
 
 This function starts to look for the number to indicate what option or path to take.
+
 ![Command Init](./PICs/command_init.png)
+
 Here, get at most to bytes from a position `+8` from the data recieved from the server.
 
 At the end of the function there is a `switch-case` block consists of 19 cases.
+
 ![Command](./PICs/command.png)
+
 This block of code convert the two or one bytes in `command` variable to integer which decides what option or path to take.
 
 After getting the option from the data received and before deciding which path to take, it tries to search for `+` in the data at a certain position every time `after 0xB`.
+
 ![Init Plus](./PICs/get_data.png)
+
 Then it starts to check if `+` is found at this position..
+
 ![chekc plus](./PICs/check_plus.png)
+
 If `yes`, it gets some data from the memory at `hex` format and decrypts it with `rc4`..
+
 ![Read Memory](./PICs/read_mem.png)
 
 ### Options
@@ -498,14 +544,22 @@ These options clears up that it has many paths to do one thing as a back-up or t
 
 The injection process takes place if the option is `13`.
 Like always in this sample and the stack pointer manipulation, it reallocates the arguments again before calling the function responsible for the injection.
+
 ![Injection](./PICs/case13.png)
+
 Inside the function `drop_inject`, it initialize a counter with `0` and enters an infinite loop.
+
 ![Pre 1](/PICs/pre_injection1.png)
+
 It connects to the server and reads file and pass it to the function responsible for injection if the reading process succeeded. If not close handles.
+
 ![Pre 2](/PICs/pre_injection2.png)
+
 If the malware could read the payload from the server and the `injection` function returns `1`(which is always returns `1`), the loop breaks successfuly.
 If the malware can't receive any response from the server which means also the injection process didn't go as planed, the malware sleeps for `10` seconds and go to lable `LABLE_66`
+
 ![Failed](/PICs/send_random.png)
+
 The function `send_data` sends some random data, but known for the mawlare author, which I assume is used to check if the server is up or has been got down.
 
 ## Inject Payload
