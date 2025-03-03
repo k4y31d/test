@@ -93,11 +93,11 @@ During the analysis of the malware sample, it was observed that it establishes p
 
 The malware establishes persistence by creating a **Scheduled Task using the Task Scheduler COM API** instead of traditional methods like schtasks.exe or registry modifications. By leveraging hardcoded **CLSIDs** and **RIIDs**, specifically **CLSID** `{148BD52A-A2AB-11CE-B11F-00AA00530503}` (representing `ITaskScheduler`)
 
-![CLSID](/PICs/rclsid.png)
+![CLSID](./PICs/rclsid.png)
 
 and **RIID** `{148BD527-A2AB-11CE-B11F-00AA00530503}` (representing `ITask`),
 
-![RIID](/PICs/riid.png)
+![RIID](./PICs/riid.png)
 
 the malware interacts directly with the Task Scheduler service. This technique enables stealthy execution and evasion from detection mechanisms that monitor command-line activity.
 
@@ -107,19 +107,19 @@ Once initialized, the malware creates a scheduled task that executes a malicious
 The task is configured to run at system startup or user logon, ensuring persistence across reboots. To make the task less noticeable in the Task Scheduler UI. By using **`CoCreateInstance`** to instantiate `ITaskScheduler` and `ITask`.
 The malware first checks wether it runs from the **Temp** or another folder.
 
-![Check Temp](/PICs/CheckInTemp.png)
+![Check Temp](./PICs/CheckInTemp.png)
 
 If it runs from the **Temp** ignore the task creation and if not it creates the task
 
-![Creates Task](/PICs/createsTask.png)
+![Creates Task](./PICs/createsTask.png)
 
 The malware programmatically creates and registers the task without invoking external processes, making it harder to detect through standard security monitoring.
 
-![NewTask](/PICs/NewTask.png)
+![NewTask](./PICs/NewTask.png)
 
 And if the creation failed, the malware checks the error signal and if the error is `0x80070050` which means `"A file or object with the specified name already exists."`, the malware deletes the task and recreates it.
 
-![Recreate](/PICs/NewTaskFailed.png)
+![Recreate](./PICs/NewTaskFailed.png)
 
 This persistence mechanism poses a significant challenge for detection and mitigation, as it bypasses command-line monitoring and process-based detection. However, defenders can identify this behavior by auditing `Scheduled Task entries`, monitoring for unusual `COM object instantiations`, and inspecting the `Temp directory` for unauthorized executables. Removing the malicious task requires using `schtasks /delete` or PowerShell’s `Unregister-ScheduledTask` command.
 
@@ -131,7 +131,7 @@ The malware also creates a job associated with the scheduled task, likely servin
 - Ensure reliable execution of the malware.
 - Bypass certain security mechanisms that might block standalone execution.
 
-![Task](/PICs/tasks.png)
+![Task](./PICs/tasks.png)
 
 #### Task Execution & Persistence
 
@@ -184,11 +184,11 @@ After achieving persistence, the malware ensures that it's running from the **Te
 - Concatinating to it the desiered folder to contain our malware which is `cca1940fda`.
 - Adding to the path the desiered name for the malware to be run as `Gxtuum.exe`.
   
-![Temp prep](/PICs/temp_prep.png)
+![Temp prep](./PICs/temp_prep.png)
 
 - It then gets the file name and path using `GetModuleFileNameA` API.
   
-![Comparing Path](/PICs/path_cmp.png)
+![Comparing Path](./PICs/path_cmp.png)
 
 - Compares between these to paths and if compatable move on, if not:
   - Check if there is any directory with the name `cca1940fda` and if yes, tries to open the malware at the reading mode:
@@ -197,26 +197,26 @@ After achieving persistence, the malware ensures that it's running from the **Te
     - If can't open it, Copies itself to the desiered path with the new name, and finally excutes from the **Temp**.
   - If there isn't, creates the directory and copies itself to the **Temp** and finally excutes.
 
-  ![Directory](/PICs/fExists.png)
-  ![Not Existing](/PICs/fNotExists.png)
+  ![Directory](./PICs/fExists.png)
+  ![Not Existing](./PICs/fNotExists.png)
 
 ---------------------------------  
 
 - `make_copy_0`
   
-  ![Coping](/PICs/copy.png)
+  ![Coping](./PICs/copy.png)
 
 ---------------------------------
 
 - `shell_excute`
   
-  ![Excutes](/PICs/excute.png)
+  ![Excutes](./PICs/excute.png)
 
 ---------------------------------
 
 **Machine Temp Folder**
 
-![Temp](/PICs/temp.png)
+![Temp](./PICs/temp.png)
 
 ## Mutex
 
@@ -242,7 +242,7 @@ The malware employs a **mutex (Mutual Exclusion Object)** as part of its executi
 
 Mutex name `44c9c3d1e2ec0331790f629dd3724d02`
 
-![Mutex](/PICs/mutex.png)
+![Mutex](./PICs/mutex.png)
 
 Amadey reuses the mutex name as a `rc4 Key` for encrypt and decrypt data in communication with the C2 server.
 
@@ -456,7 +456,7 @@ Keyboard Layout\Preload<br>
 Amadey stores the C2 server on its configurations and decrypts it when needed like other configurations.
 After Amadey sets up all things, achieve Persistence, host profiling, move itself to the temp and boot up from there, it creates a thread to continue the work from an infinte loop...
 
-![C2_Prep](/PICs/c2_prep.png)
+![C2_Prep](./PICs/c2_prep.png)
 
 Amadey decryptes the C2 server and the object it will request at the begining of the function.
 Things can be very confusing, but Amadey uses stack pointer manipulation which is making things quite difficult especially when it comes to arguments and it's hard to resolve for ida, but I did my best to clear things up.
@@ -470,15 +470,15 @@ Amadey initializes the connection with the remote end using the high level `Wini
 
 - Initialize the connection
 
-![APIS](/PICs/comm2.png)
+![APIS](./PICs/comm2.png)
 
 - Read the Data from the server
 
-![APIS](/PICs/saved_data.png)
+![APIS](./PICs/saved_data.png)
 
 - Save the data to another variable
 
-![APIS](/PICs/ret_data.png)
+![APIS](./PICs/ret_data.png)
 
 - Return the data received from the server
 
@@ -515,11 +515,11 @@ If can't find the `#` inside the data recieved from the server, reallocate the a
 
 But if found `#` the other path starts with infinte loop and starts to search for the hashtags `#` through the response uses a variable as an index to indicates where is these hashtags and if this counter or index exceeds the total size of the server response the loop break.
 
-![Path2](/PICs/Path2.png)
+![Path2](./PICs/Path2.png)
 
 The break from the loop resides at the end of the loop...
 
-![Break](/PICs/break.png)
+![Break](./PICs/break.png)
 
 Because I can't get the response from the server without emulation, I assume that the response `commands` is kind of instructions sequence separated by `#` and we would know why later...
 
@@ -592,24 +592,24 @@ Like always in this sample and the stack pointer manipulation, it reallocates th
 
 Inside the function `drop_inject`, it initialize a counter with `0` and enters an infinite loop.
 
-![Pre 1](/PICs/pre_injection1.png)
+![Pre 1](./PICs/pre_injection1.png)
 
 It connects to the server and reads file and pass it to the function responsible for injection if the reading process succeeded. If not close handles.
 
-![Pre 2](/PICs/pre_injection2.png)
+![Pre 2](./PICs/pre_injection2.png)
 
 If the malware could read the payload from the server and the `injection` function returns `1`(which is always returns `1`), the loop breaks successfuly.
 If the malware can't receive any response from the server which means also the injection process didn't go as planed, the malware sleeps for `10` seconds and go to lable `LABLE_66`
 
-![Failed](/PICs/send_random.png)
+![Failed](./PICs/send_random.png)
 
 The function `send_data` sends some random data, but known for the mawlare author, which I assume is used to check if the server is up or has been got down.
 
 ## Inject Payload
 
-![inj](/PICs/inj_1.png)
-![inj](/PICs/inj_2.png)
-![inj](/PICs/inj_3.png)
+![inj](./PICs/inj_1.png)
+![inj](./PICs/inj_2.png)
+![inj](./PICs/inj_3.png)
 
 - The function starts to retrieve the file name of the current executable and stores it in `Filename` to create another process of it in the `suspended` state using `CreateProcessA` API.
 - At first, it checks if the payload starts with the   magic signature for the pe files `MZ` and if yes it checks if the signature is `PE` to nake sure the payload is an excutable.
