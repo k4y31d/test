@@ -250,7 +250,7 @@ We mentioned the malware moves the configs to the `.data` section in run time be
 
   - Inside the loop it iterates throw this custom base(characters set differ from the base64 ordinary characters set).
   - The loop searches for the character in the encrypted config inside this custom set and return its index `char_index`.
-
+-----------------------------------------------
 - Second Inner Loop
 
 ![Key Loop](./PICs/key_loop.png)
