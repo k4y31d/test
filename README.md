@@ -1,29 +1,40 @@
 # Amadey in nutshell
 
-Amadey is a lightweight malware loader first discovered in 2018, primarily used by cybercriminals to deploy additional payloads onto infected systems. Known for its simplicity and efficiency, Amadey enables threat actors to distribute stealers, banking trojans, and ransomware while maintaining a low detection footprint. It is often distributed through phishing emails, exploit kits, or malicious spam campaigns. Unlike more advanced botnets, Amadey focuses on stealth and persistence, making it a valuable tool for cybercriminals. Key features include:
-  
-Recently, Amadey has been observed distributing RedLine Stealer and Vidar Stealer, commonly used in credential theft and financial fraud. The loader is also leveraged by Russian-speaking underground forums, making it a persistent threat in cybercrime operations.
-
-[In online interview](https://g0njxa.medium.com/approaching-stealers-devs-a-brief-interview-with-amadey-56c8c6ea0ad6), Amadey's author clears that he developed this malware because `SmokeLoader` didn’t meet the requirements of his work and developed his own tool. That’s why Amadey was created.
+Amadey is a malware loader first discovered in 2018, primarily used by cybercriminals to deploy additional payloads onto infected systems. Known for its simplicity and efficiency, Amadey enables threat actors to distribute stealers, banking trojans, and ransomware while maintaining a low detection footprint. It is often distributed through phishing emails, exploit kits, or malicious spam campaigns. Unlike more advanced botnets, Amadey focuses on stealth and persistence, making it a valuable tool for cybercriminals. Recently, Amadey has been observed distributing RedLine Stealer and Vidar Stealer, commonly used in credential theft and financial fraud. The loader is also leveraged by Russian-speaking underground forums, making it a persistent threat in cybercrime operations. [In online interview](https://g0njxa.medium.com/approaching-stealers-devs-a-brief-interview-with-amadey-56c8c6ea0ad6), Amadey's author clears that he developed this malware because `SmokeLoader` didn’t meet the requirements of his work and developed his own tool. That’s why Amadey was created.
 
 # Tech Summary
 
-- **Payload Deployment**: Downloads and executes additional malware.
-- **System Profiling**: Collects system information to tailor further attacks.
-- **C2 Communication**: Uses encrypted requests to communicate with a command-and-control (C2) server.
-- **Task Scheduler & Registry Modifications**: Establishes persistence mechanisms.
-- **Process Injection**: Downloads additional payloads and injects it into another processes.
+- **Host Profiling**: Before executing its main payload, Amadey collects detailed system information to profile the infected host. This includes OS version, user privileges, antivirus status, system architecture, domain membership, and computer name. The gathered intelligence allows Amadey to adapt its behavior, evade execution in certain environments (e.g., sandboxes), and tailor payload delivery based on system defenses and privileges.
+
+- **Configuration Extraction**: Amadey employs a custom Base64 encoding scheme to secure its configurations. The encrypted configurations are initially stored in the .rdata section and are dynamically decrypted into memory only when needed. This decryption process involves custom Base64 translation and key-mapped decryption, ensuring that configurations remain hidden from static analysis. The extracted data includes command-and-control (C2) addresses, execution parameters, and persistence settings.
+
+- **C2 Communication**: Amadey communicates with its C2 infrastructure using WinINet APIs, leveraging encrypted HTTP requests to maintain stealth. The malware first sends host profiling data to the server, after which it retrieves and decrypts commands to determine its next actions. If the malware does not receive a response, it clears memory, sleeps for a predefined interval, and reconnects, ensuring persistence in communication.
+
+- **Payload Deployment**: Amadey supports multiple payload execution methods, giving threat actors flexibility in attack strategies. It can download and execute EXE/DLL payloads, including ransomware or banking trojans. Inject shellcode into legitimate processes to evade detection, Drop secondary malware components in hidden system directories ,and Modify registry keys (RunOnce) and create scheduled tasks to maintain execution across reboots.
+
+- **Malicious Code Execution**: Amadey ensures the execution of its payloads using various techniques: Process injection into suspended processes for stealth execution, Unmapping legitimate executables and replacing them with malicious code using NtUnmapViewOfSection, Scheduled Task creation using the COM interface, avoiding schtasks.exe detection ,and Re-executing itself from the Temp directory if not already running from there
 
 # Analysis
 
-**In the initial stage of analysis**, I got the sample with hash `MD5: 4EC4CA62CD91B6E9DDD4327DB8A36BFE`, static techniques were sufficient to examine the sample. Loading the file into `Detect It Easy (DIE)` revealed that it contained a compressed `RAR` archive. Upon extracting this archive, three files were found:
+## Initial Triage
+
+| Field                          | Value                                                                      |
+|--------------------------------|-----------------------------------------------------------------------------|
+| File Type            |PE32+ executable (GUI) x86-64, for MS Windows                                  |
+|File Size             |591.23 KiB          |
+| MD5                  | 4EC4CA62CD91B6E9DDD4327DB8A36BFE            |
+| SHA1                 | 8FC4B3C9E628F3368EE50186806C5790D0E68C21    |
+| SHA256               | A00ED97F90DA21D37AA31B844C2F7CDE66C7CAE5A70AD60310D7F1F671360C16                                       |
+
+**In the initial stage of analysis**, I got the sample with hash [`MD5: 4EC4CA62CD91B6E9DDD4327DB8A36BFE`](https://bazaar.abuse.ch/sample/a00ed97f90da21d37aa31b844c2f7cde66c7cae5a70ad60310d7f1f671360c16/), static techniques were sufficient to examine the sample. Loading the file into `Detect It Easy (DIE)` revealed that it contained a compressed `RAR` archive. Upon extracting this archive, three files were found:
 
 - `book.exe` – A suspicious executable
 - `book.xlsx` – A decoy Excel spreadsheet
 - `luncher.bat` – A batch script responsible for execution
 
-Behavior of the Batch Script
-The batch file `(luncher.bat)` contained only three lines of code:
+### Behavior of the Batch Script
+
+The batch script `(luncher.bat)` behavior Includes executing only three lines of code:
 
 ```bash
 start "" "book.exe"
@@ -37,10 +48,12 @@ Its purpose is straightforward:
 - It opens book.xlsx, likely to divert suspicion and make execution appear legitimate.
 - It self-deletes to remove traces of execution.
 
+## Unpacking and Identifying the Payload
+
 To further investigate,I uploaded the sample to unpac.me, which successfully unpacked the payload. The unpacked executable was identified as Amadey malware, with the same hash as book.exe extracted earlier using `DIE`.
 This strongly suggests that the first stage functions as a packer or dropper, designed to deliver and execute Amadey while maintaining stealth. The batch script facilitates execution while erasing evidence, a common tactic in malware deployment.
 
-I've uploaded the sample to [traige](https://tria.ge/250205-r4g1nasnem/behavioral1) sandbox and from the dynamic behaviour and the report clears that this intial sample only drops the three files and run the batch script and the file `book.exe` does all the work.
+I've uploaded the sample to traige sandbox and from the dynamic behaviour and the [triage report](https://tria.ge/250205-r4g1nasnem/behavioral1) clear that this intial sample only drops the three files and run the batch script and the file `book.exe` does all the work.
 
 From this point, I give all my attention to the file `book.exe` and the coming analysis is all about it.
 
@@ -70,7 +83,7 @@ The malware collects the following system-related information:
 |av | Installed antivirus software, useful for evasion techniques.|
 |bi | Build information of the system, which may indicate specific Windows distributions or architectures.|
 |ar | Administrator rights status, determining whether the malware runs with elevated privileges.|
-|lv | Locale and language settings, which could help malware avoid execution in specific regions.|
+|lv | Additional malware installed on infected machine.|
 |og | Organization or domain name, often extracted for targeting enterprise environments.|
 |un | Current username, useful for determining access levels and privileges.|
 |dm | Domain membership status, relevant for targeting corporate networks.|
@@ -93,11 +106,11 @@ During the analysis of the malware sample, it was observed that it establishes p
 
 The malware establishes persistence by creating a **Scheduled Task using the Task Scheduler COM API** instead of traditional methods like schtasks.exe or registry modifications. By leveraging hardcoded **CLSIDs** and **RIIDs**, specifically **CLSID** `{148BD52A-A2AB-11CE-B11F-00AA00530503}` (representing `ITaskScheduler`)
 
-![CLSID](./PICs/rclsid.png)
+![CLSID](/PICs/rclsid.png)
 
 and **RIID** `{148BD527-A2AB-11CE-B11F-00AA00530503}` (representing `ITask`),
 
-![RIID](./PICs/riid.png)
+![RIID](/PICs/riid.png)
 
 the malware interacts directly with the Task Scheduler service. This technique enables stealthy execution and evasion from detection mechanisms that monitor command-line activity.
 
@@ -107,19 +120,19 @@ Once initialized, the malware creates a scheduled task that executes a malicious
 The task is configured to run at system startup or user logon, ensuring persistence across reboots. To make the task less noticeable in the Task Scheduler UI. By using **`CoCreateInstance`** to instantiate `ITaskScheduler` and `ITask`.
 The malware first checks wether it runs from the **Temp** or another folder.
 
-![Check Temp](./PICs/CheckInTemp.png)
+![Check Temp](/PICs/CheckInTemp.png)
 
 If it runs from the **Temp** ignore the task creation and if not it creates the task
 
-![Creates Task](./PICs/createsTask.png)
+![Creates Task](/PICs/createsTask.png)
 
 The malware programmatically creates and registers the task without invoking external processes, making it harder to detect through standard security monitoring.
 
-![NewTask](./PICs/NewTask.png)
+![NewTask](/PICs/NewTask.png)
 
 And if the creation failed, the malware checks the error signal and if the error is `0x80070050` which means `"A file or object with the specified name already exists."`, the malware deletes the task and recreates it.
 
-![Recreate](./PICs/NewTaskFailed.png)
+![Recreate](/PICs/NewTaskFailed.png)
 
 This persistence mechanism poses a significant challenge for detection and mitigation, as it bypasses command-line monitoring and process-based detection. However, defenders can identify this behavior by auditing `Scheduled Task entries`, monitoring for unusual `COM object instantiations`, and inspecting the `Temp directory` for unauthorized executables. Removing the malicious task requires using `schtasks /delete` or PowerShell’s `Unregister-ScheduledTask` command.
 
@@ -131,7 +144,7 @@ The malware also creates a job associated with the scheduled task, likely servin
 - Ensure reliable execution of the malware.
 - Bypass certain security mechanisms that might block standalone execution.
 
-![Task](./PICs/tasks.png)
+![Task](/PICs/tasks.png)
 
 #### Task Execution & Persistence
 
@@ -145,15 +158,15 @@ Once the scheduled task is created, it will:
 
 ```
 Folder: \
-HostName:                             DESKTOP-3AKENE3
+HostName:                             xxxxxxx-xxxxxxx
 TaskName:                             \Gxtuum
-Next Run Time:                        2/11/2025 4:00:00 AM
+Next Run Time:                        x/xx/xxxx x:xx:xx XX
 Status:                               Ready
 Logon Mode:                           Interactive only
-Last Run Time:                        2/11/2025 3:59:00 AM
+Last Run Time:                        x/xx/xxxx x:xx:xx XX
 Last Result:                          0
-Author:                               DESKTOP-3AKENE3\Golden
-Task To Run:                          C:\Users\Golden\AppData\Local\Temp\cca1940fda\Gxtuum.exe 
+Author:                               xxxxxxx-xxxxxxx\<UserName>
+Task To Run:                          C:\Users\<UserName>\AppData\Local\Temp\cca1940fda\Gxtuum.exe 
 Start In:                             N/A
 Comment:                              N/A
 Scheduled Task State:                 Enabled
@@ -164,8 +177,8 @@ Delete Task If Not Rescheduled:       Disabled
 Stop Task If Runs X Hours and X Mins: 72:00:00
 Schedule:                             Scheduling data is not available in this format.
 Schedule Type:                        One Time Only, Minute 
-Start Time:                           1:01:00 AM
-Start Date:                           2/11/2025
+Start Time:                           x:xx:xx XX
+Start Date:                           x/xx/xxxx
 End Date:                             N/A
 Days:                                 N/A
 Months:                               N/A
@@ -184,11 +197,11 @@ After achieving persistence, the malware ensures that it's running from the **Te
 - Concatinating to it the desiered folder to contain our malware which is `cca1940fda`.
 - Adding to the path the desiered name for the malware to be run as `Gxtuum.exe`.
   
-![Temp prep](./PICs/temp_prep.png)
+![Temp prep](/PICs/temp_prep.png)
 
 - It then gets the file name and path using `GetModuleFileNameA` API.
   
-![Comparing Path](./PICs/path_cmp.png)
+![Comparing Path](/PICs/path_cmp.png)
 
 - Compares between these to paths and if compatable move on, if not:
   - Check if there is any directory with the name `cca1940fda` and if yes, tries to open the malware at the reading mode:
@@ -197,26 +210,26 @@ After achieving persistence, the malware ensures that it's running from the **Te
     - If can't open it, Copies itself to the desiered path with the new name, and finally excutes from the **Temp**.
   - If there isn't, creates the directory and copies itself to the **Temp** and finally excutes.
 
-  ![Directory](./PICs/fExists.png)
-  ![Not Existing](./PICs/fNotExists.png)
+  ![Directory](/PICs/fExists.png)
+  ![Not Existing](/PICs/fNotExists.png)
 
 ---------------------------------  
 
 - `make_copy_0`
   
-  ![Coping](./PICs/copy.png)
+  ![Coping](/PICs/copy.png)
 
 ---------------------------------
 
 - `shell_excute`
   
-  ![Excutes](./PICs/excute.png)
+  ![Excutes](/PICs/excute.png)
 
 ---------------------------------
 
 **Machine Temp Folder**
 
-![Temp](./PICs/temp.png)
+![Temp](/PICs/temp.png)
 
 ## Mutex
 
@@ -242,17 +255,15 @@ The malware employs a **mutex (Mutual Exclusion Object)** as part of its executi
 
 Mutex name `44c9c3d1e2ec0331790f629dd3724d02`
 
-![Mutex](./PICs/mutex.png)
+![Mutex](/PICs/mutex.png)
 
 Amadey reuses the mutex name as a `rc4 Key` for encrypt and decrypt data in communication with the C2 server.
 
 # Configurations
 
-The configurations are encrypted and stored in the `.rdata` section in the second stage and dynamically located in `.data` section and the heap to be decrypted later.
+The configurations are encrypted and stored in the `.rdata` section in the second stage and dynamically located in `.data` section and the heap to be decrypted later. **Amadey** decryptes configuration only when needed and located it in the heap and after using it the malware removes it from the heap and keeps the encrypted configuration only.
 
-**Amadey** decryptes configuration only when needed and located it in the heap and after using it the malware removes it from the heap and keeps the encrypted configuration only.
-
-### How works
+## How works
 
 Before excuting the main, **Amadey** locates the [encrypted configurations](./PICs/SUBs/) inline in the `.data` sectoin.
 The configs are stored in some base64 format but when I tried to decode it the value wasn't readable, so I assumed it's a custom base64 encoded.
@@ -267,13 +278,13 @@ Inside the decryption function it calls two functions
 
 ![String Decryption Function](./PICs/string_decryption.png)
 
-#### Decryption
+### Decryption
 
-##### Decrypt the custom base64
+#### Decrypt the custom base64
 
 Like we said the configs are stored in custom base64 format this function is responsible for converting this format into tybicall base64.
 
-###### Algorithm
+##### Algorithm
 
 This function is consist of one main loop to iterate throw the encrypted config's characters and other two loops to set up the decryption
 
@@ -311,11 +322,11 @@ After getting the indexes from the previous two loops the math begin...
 
 ![Decrypt Index](./PICs/decryption.png)
 
-##### Decode Base64
+#### Decode Base64
 
 After the main for loop the retrun value is the actual base64 which we can decode it using base64 libraries or using `cyberchef`
 
-### configs extractor
+## configs extractor
 
 To get the configs I developed a [python script](./test.py) simulating the decryption process to extract all the configs.
 
@@ -327,7 +338,7 @@ Decoded Base64: R3h0dXVtLmV4ZQ== //after applying the previous algorithm
 Decoded String --> Gxtuum.exe  //just decode the output base64 
 ```
 
-#### Decrypted Configs
+### Decrypted Configs
 
 <details style="color: #EEFFFF; font-family: monospace !default; font-size: 0.85em; background: #263238; border: 1px solid #263238; border-radius: 3px; padding: 10px; line-height: 1.8">
     <summary style="outline: none; cursor: pointer">
@@ -456,7 +467,7 @@ Keyboard Layout\Preload<br>
 Amadey stores the C2 server on its configurations and decrypts it when needed like other configurations.
 After Amadey sets up all things, achieve Persistence, host profiling, move itself to the temp and boot up from there, it creates a thread to continue the work from an infinte loop...
 
-![C2_Prep](./PICs/c2_prep.png)
+![C2_Prep](/PICs/c2_prep.png)
 
 Amadey decryptes the C2 server and the object it will request at the begining of the function.
 Things can be very confusing, but Amadey uses stack pointer manipulation which is making things quite difficult especially when it comes to arguments and it's hard to resolve for ida, but I did my best to clear things up.
@@ -470,15 +481,15 @@ Amadey initializes the connection with the remote end using the high level `Wini
 
 - Initialize the connection
 
-![APIS](./PICs/comm2.png)
+![APIS](/PICs/comm2.png)
 
 - Read the Data from the server
 
-![APIS](./PICs/saved_data.png)
+![APIS](/PICs/saved_data.png)
 
 - Save the data to another variable
 
-![APIS](./PICs/ret_data.png)
+![APIS](/PICs/ret_data.png)
 
 - Return the data received from the server
 
@@ -515,11 +526,11 @@ If can't find the `#` inside the data recieved from the server, reallocate the a
 
 But if found `#` the other path starts with infinte loop and starts to search for the hashtags `#` through the response uses a variable as an index to indicates where is these hashtags and if this counter or index exceeds the total size of the server response the loop break.
 
-![Path2](./PICs/Path2.png)
+![Path2](/PICs/Path2.png)
 
 The break from the loop resides at the end of the loop...
 
-![Break](./PICs/break.png)
+![Break](/PICs/break.png)
 
 Because I can't get the response from the server without emulation, I assume that the response `commands` is kind of instructions sequence separated by `#` and we would know why later...
 
@@ -575,7 +586,8 @@ Most cases are concerned with droping files into the system at different places
 - Case`17` drop&excute another payload
 - Case`18` sending data and drop another payload
 - Case `19` make a scheduled task and edit the `RunOnce` registry key and adds a new value there to ensure lunching up at the start up.
-- Case`22` another path in it dropped a `dll` `Plugins.dll`
+- Case`21` another path in it dropped and excute `dll` `cred.dll`
+- Case`22` another path in it dropped and excute `dll` `clip.dll`
 - Case`24` sending data
 - Case`25` another way to creat and drop file
 
@@ -592,24 +604,24 @@ Like always in this sample and the stack pointer manipulation, it reallocates th
 
 Inside the function `drop_inject`, it initialize a counter with `0` and enters an infinite loop.
 
-![Pre 1](./PICs/pre_injection1.png)
+![Pre 1](/PICs/pre_injection1.png)
 
 It connects to the server and reads file and pass it to the function responsible for injection if the reading process succeeded. If not close handles.
 
-![Pre 2](./PICs/pre_injection2.png)
+![Pre 2](/PICs/pre_injection2.png)
 
 If the malware could read the payload from the server and the `injection` function returns `1`(which is always returns `1`), the loop breaks successfuly.
 If the malware can't receive any response from the server which means also the injection process didn't go as planed, the malware sleeps for `10` seconds and go to lable `LABLE_66`
 
-![Failed](./PICs/send_random.png)
+![Failed](/PICs/send_random.png)
 
 The function `send_data` sends some random data, but known for the mawlare author, which I assume is used to check if the server is up or has been got down.
 
 ## Inject Payload
 
-![inj](./PICs/inj_1.png)
-![inj](./PICs/inj_2.png)
-![inj](./PICs/inj_3.png)
+![inj](/PICs/inj_1.png)
+![inj](/PICs/inj_2.png)
+![inj](/PICs/inj_3.png)
 
 - The function starts to retrieve the file name of the current executable and stores it in `Filename` to create another process of it in the `suspended` state using `CreateProcessA` API.
 - At first, it checks if the payload starts with the   magic signature for the pe files `MZ` and if yes it checks if the signature is `PE` to nake sure the payload is an excutable.
@@ -627,15 +639,20 @@ attempts to read the process memory (likely checking the ImageBase).
 
 | No                          | Description                                                                      |  Value      |
 |--------------------------------|-----------------------------------------------------------------------------|--------------|
-| 1 | C2 | `185.196.8.37/Gd85kkjf/index.php` |
-|2| Temp Folder| `cca1940fda`|
-|3| Running Process| `Gxtuum.exe`|
-| 4| Dropped File | `Plugins.dll`, `book.exe`, `Book.xsls`|
-|5|Created Job|`Gxtuum.job`|
-|6|Mutant|`44c9c3d1e2ec0331790f629dd3724d02`|
+|0|Parent MD5|`DAA3F1F23DDDF4CF413B75E3F2A75DF7`|
+|1|Amadey MD5| `4EC4CA62CD91B6E9DDD4327DB8A36BFE`|
+|2|Excel File MD5| `C3359A4D30E2D8799E0DB42574AB1D3E`|
+|3|Batch Script MD5| `E7B54FA04F8E0BBF4D5E392FEB49B45D`|
+| 4 | C2 | `185.196.8.37/Gd85kkjf/index.php`, `185.196.8.37/Gd85kkjf/Plugins/cred.dll`, `185.196.8.37/Gd85kkjf/Plugins/clip.dll` |
+|5| Temp Folder| `cca1940fda`|
+|6| Running Process| `Gxtuum.exe`|
+| 7| Dropped File | `Plugins.dll`, `book.exe`, `Book.xsls`|
+|8|Created Job|`Gxtuum.job`|
+|9|Mutant|`44c9c3d1e2ec0331790f629dd3724d02`|
 
 # yara
 
 # Conclusion
 
 # Xrefs
+
