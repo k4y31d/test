@@ -172,7 +172,7 @@ Comment:                              N/A
 Scheduled Task State:                 Enabled
 Idle Time:                            Disabled
 Power Management:                     
-Run As User:                          Golden
+Run As User:                          xxxxxx
 Delete Task If Not Rescheduled:       Disabled
 Stop Task If Runs X Hours and X Mins: 72:00:00
 Schedule:                             Scheduling data is not available in this format.
