@@ -70,7 +70,8 @@ From this point, I give all my attention to the file `book.exe` and the coming a
 
 During the analysis of the malware sample, it was observed that it collects various system attributes to profile the infected host. This information helps the malware determine the system's characteristics and decide on further actions, such as evading detection, executing payloads, or tailoring attacks.
 
-Extracted Host Profiling Parameters
+### Extracted Host Profiling Parameters
+
 The malware collects the following system-related information:
 
 |Identifier|Value|
@@ -104,15 +105,12 @@ During the analysis of the malware sample, it was observed that it establishes p
 
 #### Scheduled Task via COM Interface
 
-The malware establishes persistence by creating a **Scheduled Task using the Task Scheduler COM API** instead of traditional methods like schtasks.exe or registry modifications. By leveraging hardcoded **CLSIDs** and **RIIDs**, specifically **CLSID** `{148BD52A-A2AB-11CE-B11F-00AA00530503}` (representing `ITaskScheduler`)
+The malware establishes persistence by creating a **Scheduled Task using the Task Scheduler COM API** instead of traditional methods like schtasks.exe or registry modifications. By leveraging hardcoded **CLSIDs** and **RIIDs**, specifically **CLSID** `{148BD52A-A2AB-11CE-B11F-00AA00530503}` (representing `ITaskScheduler`) and **RIID** `{148BD527-A2AB-11CE-B11F-00AA00530503}` (representing `ITask`).
 
 ![CLSID](/PICs/rclsid.png)
-
-and **RIID** `{148BD527-A2AB-11CE-B11F-00AA00530503}` (representing `ITask`),
-
 ![RIID](/PICs/riid.png)
 
-the malware interacts directly with the Task Scheduler service. This technique enables stealthy execution and evasion from detection mechanisms that monitor command-line activity.
+The malware interacts directly with the Task Scheduler service. This technique enables stealthy execution and evasion from detection mechanisms that monitor command-line activity.
 
 Once initialized, the malware creates a scheduled task that executes a malicious malware copied to the Temp directory, typically found at:
 `C:\Users\<Username>\AppData\Local\Temp\Gxtuum.exe`
@@ -122,7 +120,7 @@ The malware first checks wether it runs from the **Temp** or another folder.
 
 ![Check Temp](/PICs/CheckInTemp.png)
 
-If it runs from the **Temp** ignore the task creation and if not it creates the task
+If it runs from the **Temp** ignore the task creation and if not it creates the task.
 
 ![Creates Task](/PICs/createsTask.png)
 
@@ -166,13 +164,13 @@ Logon Mode:                           Interactive only
 Last Run Time:                        x/xx/xxxx x:xx:xx XX
 Last Result:                          0
 Author:                               xxxxxxx-xxxxxxx\<UserName>
-Task To Run:                          C:\Users\<UserName>\AppData\Local\Temp\cca1940fda\Gxtuum.exe 
+Task To Run:                          C:\Users\<Username>\AppData\Local\Temp\cca1940fda\Gxtuum.exe 
 Start In:                             N/A
 Comment:                              N/A
 Scheduled Task State:                 Enabled
 Idle Time:                            Disabled
 Power Management:                     
-Run As User:                          xxxxxx
+Run As User:                          <Username>
 Delete Task If Not Rescheduled:       Disabled
 Stop Task If Runs X Hours and X Mins: 72:00:00
 Schedule:                             Scheduling data is not available in this format.
@@ -257,11 +255,11 @@ Mutex name `44c9c3d1e2ec0331790f629dd3724d02`
 
 ![Mutex](/PICs/mutex.png)
 
-Amadey reuses the mutex name as a `rc4 Key` for encrypt and decrypt data in communication with the C2 server.
+```Amadey reuses the mutex name as a rc4 Key for encrypt and decrypt data in communication with the C2 server.```
 
 # Configurations
 
-The configurations are encrypted and stored in the `.rdata` section in the second stage and dynamically located in `.data` section and the heap to be decrypted later. **Amadey** decryptes configuration only when needed and located it in the heap and after using it the malware removes it from the heap and keeps the encrypted configuration only.
+The configurations are encrypted and stored in the `.rdata` section in the second stage and dynamically located in `.data` section and the heap to be decrypted later. **Amadey** decryptes configuration **inline** and after using it, the malware removes it from the heap and keeps the **encrypted** configuration only.
 
 ## How works
 
@@ -271,7 +269,7 @@ Tracing the structs xrefs, found before using these configs it's being decrypted
 
 ![Setting up](./PICs/decryption_initialize.png)
 
-Inside the decryption function it calls two functions
+Inside the decryption function it calls two functions:
   
 - First one for decryption the custom base64.
 - Second function is the base64 decoding/encoding function
@@ -552,9 +550,9 @@ This function starts to look for the number to indicate what option or path to t
 
 ![Command Init](./PICs/command_init.png)
 
-Here, get at most to bytes from a position `+8` from the data recieved from the server.
+Here, get at most two bytes from a position `+8` from the data recieved from the server.
 
-At the end of the function there is a `switch-case` block consists of 19 cases.
+At the end of the function there is a `switch-case` block consists of 20 cases.
 
 ![Command](./PICs/command.png)
 
@@ -577,19 +575,20 @@ If `yes`, it gets some data from the memory at `hex` format and decrypts it with
 Most cases are concerned with droping files into the system at different places
 
 - Cases `10, 12, 26, 27, 28` all takes the same path with different initialzing.
-- Cases `23, 22, 21, 20, 29` sending different data
-- Case`11` drop `dll`
-- Case`13` inject and excute payload from the server
-- Case`14` drop another payload
-- Case`15` initialize connection with low-leve APIs
-- Case`16` use the low-leve connection
-- Case`17` drop&excute another payload
-- Case`18` sending data and drop another payload
+- Cases `23, 22, 21, 20, 29` sending different data.
+- Case`11` drop `dll`.
+- Case`13` inject and excute payload from the server.
+- Case`14` drop another payload.
+- Case`15` initialize connection with low-leve APIs.
+- Case`16` use the low-leve connection.
+- Case`17` drop&excute another payload.
+- Case`18` sending data and drop another payload.
 - Case `19` make a scheduled task and edit the `RunOnce` registry key and adds a new value there to ensure lunching up at the start up.
-- Case`21` another path in it dropped and excute `dll` `cred.dll`
-- Case`22` another path in it dropped and excute `dll` `clip.dll`
-- Case`24` sending data
-- Case`25` another way to creat and drop file
+- Case `20` sends screenshots and other system relative data.
+- Case`21` another path in it dropp and excute `dll` `cred.dll`.
+- Case`22` another path in it dropp and excute `dll` `clip.dll`.
+- Case`24` sending data.
+- Case`25` another way to creat and drop file.
 
 These options clears up that it has many paths to do one thing as a back-up or to do it with different arguments.
 
@@ -624,7 +623,7 @@ The function `send_data` sends some random data, but known for the mawlare autho
 ![inj](/PICs/inj_3.png)
 
 - The function starts to retrieve the file name of the current executable and stores it in `Filename` to create another process of it in the `suspended` state using `CreateProcessA` API.
-- At first, it checks if the payload starts with the   magic signature for the pe files `MZ` and if yes it checks if the signature is `PE` to nake sure the payload is an excutable.
+- At first, it checks if the payload starts with the   magic signature for the pe files `MZ` and if yes it checks if the signature is `PE` to make sure the payload is an excutable.
 - Allocates memory for the thread context and retrieves the thread context of the suspended process,
 attempts to read the process memory (likely checking the ImageBase).
 - Calls `NtUnmapViewOfSection` to remove the existing executable from the newly created process.
@@ -646,7 +645,7 @@ attempts to read the process memory (likely checking the ImageBase).
 | 4 | C2 | `185.196.8.37/Gd85kkjf/index.php`, `185.196.8.37/Gd85kkjf/Plugins/cred.dll`, `185.196.8.37/Gd85kkjf/Plugins/clip.dll` |
 |5| Temp Folder| `cca1940fda`|
 |6| Running Process| `Gxtuum.exe`|
-| 7| Dropped File | `Plugins.dll`, `book.exe`, `Book.xsls`|
+| 7| Dropped File | `crdd.dll`,, `clip.dll` `book.exe`, `Book.xslx`|
 |8|Created Job|`Gxtuum.job`|
 |9|Mutant|`44c9c3d1e2ec0331790f629dd3724d02`|
 
@@ -655,4 +654,3 @@ attempts to read the process memory (likely checking the ImageBase).
 # Conclusion
 
 # Xrefs
-
