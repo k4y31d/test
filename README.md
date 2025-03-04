@@ -326,7 +326,7 @@ After the main for loop the retrun value is the actual base64 which we can decod
 
 ## configs extractor
 
-To get the configs I developed a [python script](./test.py) simulating the decryption process to extract all the configs.
+To get the configs I developed a [python script](./script.py) simulating the decryption process to extract all the configs.
 
 eg. for this algorithm
 
